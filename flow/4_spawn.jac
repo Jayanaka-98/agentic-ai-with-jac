@@ -10,8 +10,10 @@ Two things this needs beyond the bare sketch:
   * a `sem` on each `by llm()` method, so byLLM has the semantic context to
     build the prompt (a method with neither a `sem` nor a `has` field returns
     its prompt template instead of calling the model).
-  * `str(...)` around each `wait` result -- `wait` yields an untyped (any)
-    walker, and the type checker needs a concrete str for synthesize's params.
+  * `synthesize` takes the researcher walkers themselves (typed `any`) and byLLM
+    reads their `topic`/`result` fields directly -- no string extraction. The
+    `any` is needed because `wait` yields an `<Unknown>`-typed value, which the
+    checker refuses to bind to an explicit walker type.
 """
 
 import from byllm.llm { Model }
@@ -54,7 +56,7 @@ sem AIResearcher.investigate = "Research the topic from an AI/ML angle (model ar
 walker SurveyAgent {
     has topic: str;
     has response: str = "";
-    def synthesize(topic: str, hw: str, sw: str, ai: str) -> str by llm();
+    def synthesize(topic: str, hw: any, sw: any, ai: any) -> str by llm();
 
     can start with Root entry {
         hw_task = flow root spawn HardwareResearcher(topic=self.topic);
@@ -65,9 +67,9 @@ walker SurveyAgent {
         sw: any = wait sw_task;
         ai: any = wait ai_task;
 
-        self.response = self.synthesize(
-            self.topic, str(hw.result), str(sw.result), str(ai.result)
-        );
+        # Pass the researcher walkers themselves -- byLLM reads each one's
+        # topic/result fields directly, no string extraction needed.
+        self.response = self.synthesize(self.topic, hw, sw, ai);
     }
 }
 sem SurveyAgent.synthesize = "Combine the hardware, software, and AI research notes into one survey.";
