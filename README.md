@@ -56,7 +56,7 @@ The blog snippets are trimmed for reading. Three small, real things they leave o
    ```jac
    sem Draft.run = "Write a first-draft technical explanation of the topic.";
    ```
-   In Spawn, `synthesize` takes the researcher walkers themselves (typed `any`) and byLLM reads their `topic`/`result` fields directly. The `any` is required because `wait` yields an `<Unknown>`-typed value that the checker won't bind to an explicit walker type.
+   In Spawn, `synthesize` takes the researcher walkers themselves (typed with the walker types) and byLLM reads their `topic`/`result` fields directly. Since `wait` yields an `<Unknown>`-typed value, each result is re-typed with an `as` cast — `(wait hw_task) as HardwareResearcher` — so the parameters stay correctly typed.
 
 ## License
 

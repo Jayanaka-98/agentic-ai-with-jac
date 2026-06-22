@@ -10,10 +10,10 @@ Two things this needs beyond the bare sketch:
   * a `sem` on each `by llm()` method, so byLLM has the semantic context to
     build the prompt (a method with neither a `sem` nor a `has` field returns
     its prompt template instead of calling the model).
-  * `synthesize` takes the researcher walkers themselves (typed `any`) and byLLM
-    reads their `topic`/`result` fields directly -- no string extraction. The
-    `any` is needed because `wait` yields an `<Unknown>`-typed value, which the
-    checker refuses to bind to an explicit walker type.
+  * `synthesize` takes the researcher walkers themselves and byLLM reads their
+    `topic`/`result` fields directly -- no string extraction. Because `wait`
+    yields an `<Unknown>`-typed value, each result is re-typed with an `as` cast
+    so the parameters stay correctly typed walkers.
 """
 
 import from byllm.llm { Model }
@@ -56,19 +56,25 @@ sem AIResearcher.investigate = "Research the topic from an AI/ML angle (model ar
 walker SurveyAgent {
     has topic: str;
     has response: str = "";
-    def synthesize(topic: str, hw: any, sw: any, ai: any) -> str by llm();
+    def synthesize(
+        topic: str,
+        hw: HardwareResearcher,
+        sw: SoftwareResearcher,
+        ai: AIResearcher
+    ) -> str by llm();
 
     can start with Root entry {
         hw_task = flow root spawn HardwareResearcher(topic=self.topic);
         sw_task = flow root spawn SoftwareResearcher(topic=self.topic);
         ai_task = flow root spawn AIResearcher(topic=self.topic);
 
-        hw: any = wait hw_task;
-        sw: any = wait sw_task;
-        ai: any = wait ai_task;
+        # `wait` yields an <Unknown>-typed value; the `as` cast re-types it to
+        # the concrete walker so synthesize gets properly typed researchers and
+        # byLLM reads each one's topic/result fields directly.
+        hw: HardwareResearcher = (wait hw_task) as HardwareResearcher;
+        sw: SoftwareResearcher = (wait sw_task) as SoftwareResearcher;
+        ai: AIResearcher = (wait ai_task) as AIResearcher;
 
-        # Pass the researcher walkers themselves -- byLLM reads each one's
-        # topic/result fields directly, no string extraction needed.
         self.response = self.synthesize(self.topic, hw, sw, ai);
     }
 }
