@@ -1,0 +1,17 @@
+# Jac build / cache artifacts
+__jac_gen__/
+.jac/
+.jac_mypy_cache/
+*.jac.py
+*.session
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
