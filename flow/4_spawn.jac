@@ -1,13 +1,17 @@
 """Flow pattern 4 -- Spawn: fan out parallel work, fan in the results.
 
 SurveyAgent spawns three independent walkers with `flow root spawn`, then
-collects their results with `wait`. Each researcher carries its own scoped lens
-and context, so three focused prompts run concurrently rather than one bloated
-prompt holding every tool. Synthesis runs only after all three complete.
+collects their results with `wait`. Each researcher carries its own scoped tool
+list and its own context, so three focused prompts run concurrently rather than
+one bloated prompt holding nine tools. The synthesis step `self.synthesize(...)`
+only runs after all three workers have completed.
 
-The LLM calls here are module-level `by llm()` functions called from inside the
-walker abilities -- this is byLLM's documented OSP pattern and the most robust
-way to combine `by llm()` with `flow`/`wait`.
+Two things this needs beyond the bare sketch:
+  * a `sem` on each `by llm()` method, so byLLM has the semantic context to
+    build the prompt (a method with neither a `sem` nor a `has` field returns
+    its prompt template instead of calling the model).
+  * `str(...)` around each `wait` result -- `wait` yields an untyped (any)
+    walker, and the type checker needs a concrete str for synthesize's params.
 """
 
 import from byllm.llm { Model }
@@ -17,37 +21,40 @@ glob llm = Model(model_name="openai/gpt-4o-mini");
 def search_papers(query: str) -> str { return f"papers on '{query}'"; }
 def get_citations(paper_id: str) -> int { return 1247; }
 
-def investigate(topic: str, lens: str) -> str by llm(tools=[search_papers, get_citations]);
-sem investigate = "Research the topic from the given lens, using the tools, and report findings.";
-
-def synthesize(topic: str, hw: str, sw: str, ai: str) -> str by llm();
-sem synthesize = "Combine the hardware, software, and AI research notes into one survey.";
-
 walker HardwareResearcher {
     has topic: str;
     has result: str = "";
+    def investigate(topic: str) -> str by llm(tools=[search_papers, get_citations]);
     can start with Root entry {
-        self.result = investigate(self.topic, "hardware: chips, memory, accelerators");
+        self.result = self.investigate(self.topic);
     }
 }
+sem HardwareResearcher.investigate = "Research the topic from a hardware angle (chips, memory, accelerators) using the tools.";
+
 walker SoftwareResearcher {
     has topic: str;
     has result: str = "";
+    def investigate(topic: str) -> str by llm(tools=[search_papers, get_citations]);
     can start with Root entry {
-        self.result = investigate(self.topic, "software: compilers, runtimes, serving systems");
+        self.result = self.investigate(self.topic);
     }
 }
+sem SoftwareResearcher.investigate = "Research the topic from a software angle (compilers, runtimes, serving) using the tools.";
+
 walker AIResearcher {
     has topic: str;
     has result: str = "";
+    def investigate(topic: str) -> str by llm(tools=[search_papers, get_citations]);
     can start with Root entry {
-        self.result = investigate(self.topic, "AI: model architectures and algorithms");
+        self.result = self.investigate(self.topic);
     }
 }
+sem AIResearcher.investigate = "Research the topic from an AI/ML angle (model architectures, algorithms) using the tools.";
 
 walker SurveyAgent {
     has topic: str;
     has response: str = "";
+    def synthesize(topic: str, hw: str, sw: str, ai: str) -> str by llm();
 
     can start with Root entry {
         hw_task = flow root spawn HardwareResearcher(topic=self.topic);
@@ -58,13 +65,12 @@ walker SurveyAgent {
         sw: any = wait sw_task;
         ai: any = wait ai_task;
 
-        # `wait` yields an untyped (any) walker; str(...) gives the type checker
-        # a concrete str to pass into synthesize's str parameters.
-        self.response = synthesize(
+        self.response = self.synthesize(
             self.topic, str(hw.result), str(sw.result), str(ai.result)
         );
     }
 }
+sem SurveyAgent.synthesize = "Combine the hardware, software, and AI research notes into one survey.";
 
 with entry {
     survey = root spawn SurveyAgent(topic="Efficient inference for large language models");

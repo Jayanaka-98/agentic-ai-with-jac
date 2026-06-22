@@ -52,11 +52,11 @@ The blog snippets are trimmed for reading. Three small, real things they leave o
    can begin with Root entry { visit [-->]; }
    ```
 
-3. **A `by llm()` method needs semantic context.** A node method like `def run(topic: str) -> str by llm();` needs either a `has` field or a `sem` to build its prompt — otherwise byLLM returns the rendered prompt template instead of calling the model. Pipe and Loop give each step a `sem`:
+3. **A `by llm()` method needs semantic context.** A node or walker method like `def run(topic: str) -> str by llm();` needs either a `has` field or a `sem` to build its prompt — otherwise byLLM returns the rendered prompt template instead of calling the model. Pipe, Loop, and Spawn give each method a `sem`:
    ```jac
    sem Draft.run = "Write a first-draft technical explanation of the topic.";
    ```
-   (The Spawn example uses module-level `by llm()` functions instead of walker methods, which is byLLM's documented pattern for combining LLM calls with `flow`/`wait`.)
+   In Spawn, the `wait` results are also wrapped in `str(...)` before being passed to `synthesize` — `wait` yields an untyped (`any`) walker, and the type checker needs a concrete `str` for the parameters.
 
 ## License
 
